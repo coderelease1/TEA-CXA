@@ -1,0 +1,99 @@
+{% set image_count = namespace(value=0) %}
+{% set video_count = namespace(value=0) %}
+{{- '<|im_start|>system\n' }}
+{%- if messages[0]['role'] == 'system' -%}
+    {%- if messages[0]['content'] is string -%}
+        {{ messages[0]['content'] }}
+    {%- else -%}
+        {%- for content in messages[0]['content'] -%}
+            {%- if content['type'] == 'image' or 'image' in content or 'image_url' in content -%}
+                {%- set image_count.value = image_count.value + 1 -%}
+                {%- if add_vision_id -%}
+                    {{ 'Figure ' ~ image_count.value ~ ': ' }}
+                {%- endif -%}
+                {{ '<|vision_start|><|image_pad|><|vision_end|>' }}
+            {%- elif content['type'] == 'video' or 'video' in content -%}
+                {%- set video_count.value = video_count.value + 1 -%}
+                {%- if add_vision_id -%}
+                    {{ 'Video ' ~ video_count.value ~ ': ' }}
+                {%- endif -%}
+                {{ '<|vision_start|><|video_pad|><|vision_end|>' }}
+            {%- elif 'text' in content -%}
+                {{ content['text'] }}
+                {{ '\nYour goal is to call two or more tools to compare, and consider jointly the tool responses. After calling tools, tool responses will be wrapped with <tool_response></tool_response> XML tags.\nInstructions:\nIn a multi-turn dialogue, you must choose exactly one of the following mutually exclusive formats at each turn, based on context; do not mix. First assistant turn (i.e., the first time you respond after receiving the visual question): use Format 1; Second and subsequent assistant turns: use Format 2. \n-----Format 1-----\nIf you have received the visual question, and you have NOT received any tool responses: RANDOMLY call two or more tool functions. After issuing the tool calls, STOP and wait for tool responses.\nNotes for Format 1: Each tool may be useful, so randomly select two or more tools.\n-----Format 1 end-----\n\n\n-----Format 2-----\nIf you have received tool responses (i.e., second and subsequent assistant turns): (1) Compare all the tool responses received so far in the entire conversation history. Each tool may make mistakes—do not trust a tool response just because it has a long and detailed analysis.\n(2) Then, if you judge the answer is sufficiently certain, provide the final answer choice as a single letter wrapped in <answer></answer>. Example: <answer>A</answer>. If you judge the answer is still uncertain, you may call one or more additional tool functions to reduce uncertainty, then STOP and wait for their responses.\nNotes for Format2: Each tool may make mistakes—do not trust a tool response just because it has a long analysis.\n-----Format 2 end-----\n.' }}
+            {%- endif -%}
+        {%- endfor -%}
+    {%- endif -%}
+{%- else -%}
+    {{ 'You are Qwen, created by Alibaba Cloud. You are a helpful assistant.' }}
+{%- endif -%}
+{%- if tools -%}
+    {{ '\n\n# Tools (Each tool may be unreliable, so think critically about tool responses.)\n\nYou are provided with function signatures within <tools></tools> XML tags:\n<tools>\n' }}
+    {{- tools | map('tojson') | join('\n') -}}
+    {{ '\n</tools>\n\nFor each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\n<tool_call>\n{"name": <function-name>, "arguments": <args-json-object>}\n</tool_call>' }}
+{%- endif -%}
+{{ '<|im_end|>\n' }}
+{%- for message in messages -%}
+    {# Skip the first system message as it was already rendered. #}
+    {%- if loop.first and message.role == 'system' %}{% continue %}{% endif -%}
+
+    {# Render tool messages. The logic is slightly different with other messages. #}
+    {%- if message['role'] == 'tool' -%}
+        {%- if loop.first or messages[loop.index0 - 1]['role'] != 'tool' -%}
+            {{ '<|im_start|>user' }}
+        {%- endif -%}
+        {{ '\n<tool_response>\n' }}
+    {%- else -%}
+        {{ '<|im_start|>' ~ message['role'] ~ '\n' }}
+    {%- endif -%}
+
+    {%- if message['content'] is string -%}
+        {{ message['content'] }}
+    {%- else -%}
+        {%- for content in message['content'] -%}
+            {%- if content['type'] == 'image' or 'image' in content or 'image_url' in content -%}
+                {%- set image_count.value = image_count.value + 1 -%}
+                {%- if add_vision_id -%}
+                    {{ 'Figure ' ~ image_count.value ~ ': ' }}
+                {%- endif -%}
+                {{ '<|vision_start|><|image_pad|><|vision_end|>' }}
+            {%- elif content['type'] == 'video' or 'video' in content -%}
+                {%- set video_count.value = video_count.value + 1 -%}
+                {%- if add_vision_id -%}
+                    {{ 'Video ' ~ video_count.value ~ ': ' }}
+                {%- endif -%}
+                {{ '<|vision_start|><|video_pad|><|vision_end|>' }}
+            {%- elif 'text' in content -%}
+                {{ content['text'] }}
+            {%- endif -%}
+        {%- endfor -%}
+    {%- endif -%}
+    {# Render tool_calls in AI messages. #}
+    {%- if message['role'] == 'assistant' and 'tool_calls' in message -%}
+        {# It will be cleaner if I can use some map function and join them with '\n' #}
+        {%- for tool_call in message['tool_calls'] -%}
+            {%- if tool_call['function'] is defined -%}
+                {%- set tool_call = tool_call['function'] -%}
+            {%- endif -%}
+            {{ '<tool_call>\n' }}{{ tool_call | tojson }}{{ '\n</tool_call>' }}
+            {%- if not loop.last -%}
+                {{ '\n' }}
+            {%- endif -%}
+        {%- endfor -%}
+    {%- endif -%}
+    {%- if message['role'] == 'tool' -%}
+        {{ '\n</tool_response>' }}
+        {# {{ '\nYou must integrate your previous reasoning in the previous round of conversation with the tool responses in this round.\nThen you can either call one or more tool functions or provide the final answer choice. Return the final choice as a single letter wrapped in <answer></answer>. Example: <answer>A</answer>.' }} #}
+        {%- if loop.last or messages[loop.index0 + 1]['role'] != 'tool' -%}
+            {{ '<|im_end|>\n' }}
+        {%- endif -%}
+    {%- else -%}
+        {{ '<|im_end|>\n' }}
+    {%- endif -%}
+{%- endfor -%}
+{%- if add_initial_guidance -%}
+{{ '\nFirst, perform your independent analysis about the answer to the visual question. Write this analysis inside <think> and </think> tags. You may state a provisional answer, but do NOT wrap it within <answer></answer>. Then, if you choose to call the vision-vqa_medgemma or vision-vqa_lingshu tools, you must provide both the question and explicit answer options (The A) and B) options).' }}
+{%- endif -%}
+{%- if add_generation_prompt -%}
+    {{ '<|im_start|>assistant\n' }}
+{%- endif -%}

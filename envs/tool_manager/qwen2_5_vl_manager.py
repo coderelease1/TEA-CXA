@@ -388,7 +388,7 @@ For each function call, I should return a json object with function name and arg
         if mode == 'initial':
             chat = input_data
             prompt_with_chat_template = tokenizer.apply_chat_template(
-                conversation=chat, tokenize=False, #tools=self.functions, 
+                conversation=chat, tokenize=False, tools=self.functions, 
                 add_generation_prompt=add_generation_prompt,
                 add_vision_id=True,
                 add_initial_guidance=False

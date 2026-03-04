@@ -20,7 +20,7 @@ def read_server_host_from_file(path) -> str:
 
 SERVERS_HOST = os.getenv("SERVERS_HOST", "127.0.0.1")
 print(SERVERS_HOST)
-SERVERS_HOST = read_server_host_from_file("/home/xmed/zahuai/RL-Factory/servers_node.txt")
+SERVERS_HOST = read_server_host_from_file("/your/path/to/servers_node.txt")
 
 mcp = FastMCP("LocalServer")
 
@@ -305,9 +305,7 @@ def report_generation_server(
     except Exception as e:
         return f"⚠️ Report generation failed: {str(e)}\nError type: {type(e).__name__}"
 
-#MEDVERSA_CACHE_PATH = "/home/xmed/zahuai/RL-Factory/server/medversa_cache.jsonl"
-#MEDVERSA_CACHE_PATH = "/home/xmed/zahuai/RL-Factory/server/medversa_cache_chestagentbench.jsonl"
-MEDVERSA_CACHE_PATH = "/home/xmed/zahuai/RL-Factory/server/medversa_cache_chexbench.jsonl"
+MEDVERSA_CACHE_PATH = "/your/path/server/medversa_cache_chexbench.jsonl"
 
 def make_key(image_paths: List[str]) -> str:
     h = hashlib.sha256()
@@ -319,11 +317,11 @@ def make_key(image_paths: List[str]) -> str:
 _report_cache_index: Dict[str, Dict[str, Any]] = {}
 _cache_lock = threading.Lock()
 
-with _cache_lock:
+""" with _cache_lock:
     with jsonlines.open(MEDVERSA_CACHE_PATH, "r") as reader:
         for obj in reader:
             k = obj.get("key")
-            _report_cache_index[k] = obj
+            _report_cache_index[k] = obj """
 
 #@mcp.tool()
 def report_generation(
@@ -359,13 +357,13 @@ def report_generation(
         pre_str = ""
 
     image_paths = image_path_list
-    key = make_key(image_paths)##[p.replace('/home/xmed/zahuai/RL-Factory/','') for p in image_paths]
+    key = make_key(image_paths)##[p.replace('/your/path/','') for p in image_paths]
 
     cached = _report_cache_index.get(key)
     if cached is not None:
         return pre_str + str(cached.get("report"))
     else:
-        with open('/home/xmed/zahuai/RL-Factory/error.txt', 'a', encoding='utf-8') as file:
+        with open('/your/path/error.txt', 'a', encoding='utf-8') as file:
             file.write(f"cannot find report for {image_path_list}\n")
 
 @mcp.tool()

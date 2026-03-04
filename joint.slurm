@@ -18,7 +18,7 @@ module load cuda/12.4 slurm
 
 source /your/path/to/conda.sh
 #e.g., .../miniconda3/etc/profile.d/conda.sh
-conda activate agent_tool
+conda activate tea
 
 echo $SLURMD_NODENAME > servers_node.txt
  
